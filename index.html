@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Discord Embed Viewer</title>
+<style>
+  :root {
+    --bg: #1e1f22; --embed: #2b2d31; --text: #dbdee1; --muted: #949ba4;
+    --link: #00a8fc; --brand: #5865f2; --default-accent: #4f545c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 16px; min-height: 100vh;
+    font: 15px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; flex-direction: column; align-items: center;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .controls { display: flex; gap: 8px; width: 100%; max-width: 640px; }
+  input {
+    flex: 1; padding: 11px 14px; border-radius: 6px; border: 1px solid #1a1b1e;
+    background: #1e1f22; color: var(--text); font-size: 15px; outline: none;
+  }
+  input:focus { border-color: var(--link); }
+  button {
+    padding: 11px 16px; border-radius: 6px; border: none; background: var(--brand);
+    color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  button:hover { background: #4752c4; }
+  button.ghost { background: #4e5058; }
+  button.ghost:hover { background: #5d6069; }
+  .status { min-height: 20px; margin: 12px 0; font-size: 13px; color: var(--muted); width: 100%; max-width: 640px; }
+  .status.err { color: #f23f43; }
+  .stage { width: 100%; max-width: 640px; }
+
+  /* ---- Carte embed façon Discord ---- */
+  .embed {
+    position: relative; background: var(--embed);
+    border-left: 4px solid var(--default-accent); border-radius: 4px;
+    padding: 12px 16px 14px; overflow-wrap: anywhere;
+  }
+  .embed::after { content: ""; display: block; clear: both; }
+  .provider { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
+  .author { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 14px; font-weight: 600; }
+  .author img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+  .author a { color: var(--text); text-decoration: none; }
+  .etitle { display: block; color: var(--link); font-size: 16px; font-weight: 600; text-decoration: none; margin: 4px 0; }
+  .etitle:hover { text-decoration: underline; }
+  .edesc { font-size: 14px; color: var(--text); white-space: pre-wrap; margin: 4px 0; }
+  .ethumb {
+    float: right; width: 80px; height: 80px; margin: 4px 0 8px 12px;
+    border-radius: 4px; overflow: hidden; background: #1e1f22;
+  }
+  .ethumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .eimage { position: relative; display: block; margin-top: 10px; }
+  .eimage img { width: 100%; border-radius: 4px; display: block; }
+  .eimage .play {
+    position: absolute; inset: 0; margin: auto; width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(0, 0, 0, .6); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .evideo { display: inline-block; margin-top: 10px; color: var(--link); text-decoration: none; font-weight: 600; }
+  .efooter { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .efooter img { width: 16px; height: 16px; border-radius: 3px; }
+  .warn { color: #f0b132; font-size: 12px; margin-top: 8px; }
+
+  details { margin-top: 20px; width: 100%; max-width: 640px; color: var(--muted); font-size: 12px; }
+  pre { background: #111214; padding: 12px; border-radius: 6px; overflow: auto; max-height: 340px; color: #b5bac1; }
+</style>
+</head>
+<body>
+  <h1>Discord Embed Viewer</h1>
+  <div class="sub">Colle un lien pour voir l'embed tel que Discord l'afficherait.</div>
+
+  <div class="controls">
+    <input id="url" placeholder="https://…" autofocus>
+    <button id="check">Vérifier</button>
+    <button id="refresh" class="ghost" title="Re-scraper sans cache">↻</button>
+  </div>
+
+  <div id="status" class="status"></div>
+  <div id="card" class="stage"></div>
+
+  <details id="dbg" hidden>
+    <summary>Données brutes</summary>
+    <pre id="raw"></pre>
+  </details>
+
+<script>
+  // En local ('') le backend est server.js. Sur GitHub Pages, mets l'URL de ton Worker Cloudflare.
+  const API_BASE = location.hostname.endsWith('github.io')
+    ? 'https://discord-embed-viewer.YOUR-SUBDOMAIN.workers.dev'
+    : '';
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const safeUrl = (u) => {
+    try { const x = new URL(u); return (x.protocol === 'http:' || x.protocol === 'https:') ? x.href : ''; }
+    catch { return ''; }
+  };
+  const img = (u) => API_BASE + '/api/image?url=' + encodeURIComponent(u);
+  const truncate = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+
+  function setStatus(msg, err) {
+    const s = $('status');
+    s.textContent = msg;
+    s.className = 'status' + (err ? ' err' : '');
+  }
+
+  async function run(bust) {
+    const raw = $('url').value.trim();
+    if (!raw) return setStatus('Colle un lien.', true);
+    const url = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+    setStatus('Chargement…');
+    $('card').innerHTML = '';
+    $('dbg').hidden = true;
+    try {
+      const res = await fetch(`${API_BASE}/api/embed?url=${encodeURIComponent(url)}${bust ? '&t=' + Date.now() : ''}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || ('Erreur ' + res.status));
+      render(data);
+      setStatus('');
+      $('raw').textContent = JSON.stringify(data, null, 2);
+      $('dbg').hidden = false;
+    } catch (e) {
+      setStatus('Erreur : ' + e.message, true);
+    }
+  }
+
+  function render(d) {
+    const accent = /^#?[0-9a-f]{3,8}$/i.test(d.color || '')
+      ? (d.color[0] === '#' ? d.color : '#' + d.color)
+      : '#4f545c';
+    const parts = [];
+
+    if (d.siteName) parts.push(`<div class="provider">${esc(d.siteName)}</div>`);
+
+    if (d.author && d.author.name) {
+      const ic = d.author.icon && safeUrl(d.author.icon)
+        ? `<img src="${img(d.author.icon)}" alt="" onerror="this.remove()">` : '';
+      const nm = d.author.url && safeUrl(d.author.url)
+        ? `<a href="${safeUrl(d.author.url)}" target="_blank" rel="noopener">${esc(d.author.name)}</a>`
+        : esc(d.author.name);
+      parts.push(`<div class="author">${ic}${nm}</div>`);
+    }
+
+    if (d.title) {
+      parts.push(`<a class="etitle" href="${safeUrl(d.url)}" target="_blank" rel="noopener">${esc(truncate(d.title, 256))}</a>`);
+    }
+    if (d.description) parts.push(`<div class="edesc">${esc(truncate(d.description, 1000))}</div>`);
+
+    const thumb = d.thumbnail && safeUrl(d.thumbnail.url)
+      ? `<div class="ethumb"><img src="${img(d.thumbnail.url)}" alt="" onerror="this.parentElement.remove()"></div>`
+      : '';
+
+    let media = '';
+    const hasVideo = d.video && safeUrl(d.video.url);
+    if (d.image && safeUrl(d.image.url)) {
+      const inner = `<img src="${img(d.image.url)}" alt="" onerror="this.parentElement.remove()">`;
+      media = hasVideo
+        ? `<a class="eimage" href="${safeUrl(d.url)}" target="_blank" rel="noopener">${inner}<span class="play">▶</span></a>`
+        : `<div class="eimage">${inner}</div>`;
+    } else if (hasVideo) {
+      media = `<a class="evideo" href="${safeUrl(d.url)}" target="_blank" rel="noopener">▶ Voir la vidéo</a>`;
+    }
+
+    const footer = d.siteName
+      ? `<div class="efooter">${d.favicon && safeUrl(d.favicon) ? `<img src="${img(d.favicon)}" alt="" onerror="this.remove()">` : ''}${esc(d.siteName)}</div>`
+      : '';
+
+    const warn = d.status >= 400
+      ? `<div class="warn">La page a répondu ${d.status} — embed potentiellement incomplet.</div>` : '';
+
+    $('card').innerHTML = `<div class="embed" style="border-left-color:${accent}">
+        ${thumb}<div class="ebody">${parts.join('')}</div>
+        ${media}${footer}
+      </div>${warn}`;
+  }
+
+  $('check').onclick = () => run(false);
+  $('refresh').onclick = () => run(true);
+  $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(false); });
+</script>
+</body>
+</html>
