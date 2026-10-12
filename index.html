@@ -1,53 +1,134 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
 <title>Discord Embed Viewer</title>
+<meta name="description" content="Paste a link and preview the embed Discord would render for it — title, description, image, video and color.">
 <style>
   :root {
-    --bg: #1e1f22; --embed: #2b2d31; --text: #dbdee1; --muted: #949ba4;
-    --link: #00a8fc; --brand: #5865f2; --default-accent: #4f545c;
+    color-scheme: dark;
+    --bg: #1a1b1e;
+    --chat: #313338;
+    --embed: #2b2d31;
+    --surface: #26272b;
+    --line: #3f4147;
+    --text: #f2f3f5;
+    --text-2: #b5bac1;
+    --muted: #949ba4;
+    --accent: #5865f2;
+    --accent-hi: #4752c4;
+    --link: #00a8fc;
+    --danger: #f23f43;
+    --warn: #f0b132;
+    --focus: #00a8fc;
+    --embed-accent: #4f545c;
+    --radius: 10px;
   }
   * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
-    margin: 0; padding: 40px 16px; min-height: 100vh;
-    font: 15px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: var(--text);
-    display: flex; flex-direction: column; align-items: center;
+    margin: 0;
+    padding: 40px 16px 64px;
+    min-height: 100vh;
+    font: 15px/1.55 system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
   }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
-  .controls { display: flex; gap: 8px; width: 100%; max-width: 640px; }
-  input {
-    flex: 1; padding: 11px 14px; border-radius: 6px; border: 1px solid #1a1b1e;
-    background: #1e1f22; color: var(--text); font-size: 15px; outline: none;
-  }
-  input:focus { border-color: var(--link); }
-  button {
-    padding: 11px 16px; border-radius: 6px; border: none; background: var(--brand);
-    color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap;
-  }
-  button:hover { background: #4752c4; }
-  button.ghost { background: #4e5058; }
-  button.ghost:hover { background: #5d6069; }
-  .status { min-height: 20px; margin: 12px 0; font-size: 13px; color: var(--muted); width: 100%; max-width: 640px; }
-  .status.err { color: #f23f43; }
-  .stage { width: 100%; max-width: 640px; }
+  ::selection { background: var(--accent); color: #fff; }
+  main { width: 100%; max-width: 680px; }
 
-  /* ---- Carte embed façon Discord ---- */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
+  header { margin-bottom: 22px; }
+  h1 { font-size: 22px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.02em; }
+  .lede { margin: 0; color: var(--muted); font-size: 14px; max-width: 60ch; }
+
+  /* ---- Controls ---- */
+  .controls { display: flex; gap: 8px; }
+  .controls input {
+    flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 10px 14px;
+    font-size: 15px; color: var(--text); background: #1e1f22;
+    border: 1px solid var(--line); border-radius: 8px; outline: none;
+    caret-color: var(--focus);
+  }
+  .controls input::placeholder { color: #9a9ea6; }
+  .controls input:hover { border-color: #4e5058; }
+  .btn {
+    min-height: 44px; padding: 0 18px; border: 0; border-radius: 8px; cursor: pointer;
+    font-size: 15px; font-weight: 600; font-family: inherit; color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    transition: background-color .15s ease, transform .06s ease;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--accent); }
+  .btn.primary:hover { background: var(--accent-hi); }
+  .btn.icon { width: 44px; padding: 0; background: #4e5058; }
+  .btn.icon:hover { background: #5d6069; }
+  .controls input:focus-visible,
+  .btn:focus-visible,
+  .chip:focus-visible,
+  summary:focus-visible,
+  .etitle:focus-visible,
+  .efooter a:focus-visible {
+    outline: 2px solid var(--focus); outline-offset: 2px;
+  }
+  .btn.icon svg { transition: transform .35s cubic-bezier(.22, 1, .36, 1); }
+  .btn.icon:hover svg { transform: rotate(-180deg); }
+
+  /* ---- Stage (Discord chat surface) ---- */
+  .stage {
+    margin-top: 20px; padding: 16px; min-height: 132px;
+    background: var(--chat); border-radius: var(--radius);
+    display: flex; flex-direction: column; justify-content: center;
+  }
+
+  .state-title { margin: 0 0 4px; font-weight: 600; }
+  .state-sub { margin: 0; color: var(--muted); font-size: 13px; }
+  .empty { text-align: center; padding: 14px 8px; }
+  .empty .examples { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; }
+  .chip {
+    min-height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px;
+    background: transparent; color: var(--text-2); font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .chip:hover { background: #3a3c42; color: var(--text); }
+  .error { border-left: 3px solid var(--danger); padding-left: 12px; }
+
+  /* Skeleton */
+  .skeleton { display: flex; flex-direction: column; gap: 10px; }
+  .sk {
+    border-radius: 6px;
+    background: linear-gradient(90deg, #3a3c42 25%, #45474d 37%, #3a3c42 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  .sk-line { height: 12px; }
+  .sk-img { height: 120px; margin-top: 4px; }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+  /* ---- Embed card (Discord fidelity) ---- */
   .embed {
     position: relative; background: var(--embed);
-    border-left: 4px solid var(--default-accent); border-radius: 4px;
+    border-left: 4px solid var(--embed-accent); border-radius: 4px;
     padding: 12px 16px 14px; overflow-wrap: anywhere;
+    animation: rise .2s ease-out both;
   }
   .embed::after { content: ""; display: block; clear: both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
   .provider { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
   .author { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 14px; font-weight: 600; }
   .author img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
   .author a { color: var(--text); text-decoration: none; }
+  .author a:hover { text-decoration: underline; }
   .etitle { display: block; color: var(--link); font-size: 16px; font-weight: 600; text-decoration: none; margin: 4px 0; }
-  .etitle:hover { text-decoration: underline; }
+  .etitle:hover { text-decoration: underline; text-underline-offset: 2px; }
   .edesc { font-size: 14px; color: var(--text); white-space: pre-wrap; margin: 4px 0; }
   .ethumb {
     float: right; width: 80px; height: 80px; margin: 4px 0 8px 12px;
@@ -57,38 +138,69 @@
   .eimage { position: relative; display: block; margin-top: 10px; }
   .eimage img { width: 100%; border-radius: 4px; display: block; }
   .eimage .play {
-    position: absolute; inset: 0; margin: auto; width: 44px; height: 44px; border-radius: 50%;
-    background: rgba(0, 0, 0, .6); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px;
+    position: absolute; inset: 0; margin: auto; width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(0, 0, 0, .65); color: #fff; display: flex; align-items: center; justify-content: center;
   }
-  .evideo { display: inline-block; margin-top: 10px; color: var(--link); text-decoration: none; font-weight: 600; }
+  .eimage:hover .play { background: rgba(0, 0, 0, .8); }
+  .evideo { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--link); text-decoration: none; font-weight: 600; }
+  .evideo:hover { text-decoration: underline; }
   .efooter { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; color: var(--muted); }
   .efooter img { width: 16px; height: 16px; border-radius: 3px; }
-  .warn { color: #f0b132; font-size: 12px; margin-top: 8px; }
+  .warn { color: var(--warn); font-size: 12px; margin-top: 8px; }
 
-  details { margin-top: 20px; width: 100%; max-width: 640px; color: var(--muted); font-size: 12px; }
-  pre { background: #111214; padding: 12px; border-radius: 6px; overflow: auto; max-height: 340px; color: #b5bac1; }
+  /* ---- Raw metadata ---- */
+  details { margin-top: 22px; color: var(--muted); font-size: 13px; }
+  summary { cursor: pointer; width: fit-content; }
+  pre {
+    margin: 12px 0 0; padding: 14px; max-height: 340px; overflow: auto;
+    background: #111214; border-radius: 8px; color: var(--text-2);
+    font: 12px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+    scrollbar-color: #4e5058 transparent;
+  }
+
+  @media (max-width: 520px) {
+    .controls { flex-wrap: wrap; }
+    .controls input { flex-basis: 100%; }
+    .btn.primary { flex: 1 1 auto; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
-  <h1>Discord Embed Viewer</h1>
-  <div class="sub">Colle un lien pour voir l'embed tel que Discord l'afficherait.</div>
+<main>
+  <header>
+    <h1>Discord Embed Viewer</h1>
+    <p class="lede">Paste a link to preview the embed Discord would render for it — before you share it.</p>
+  </header>
 
-  <div class="controls">
-    <input id="url" placeholder="https://…" autofocus>
-    <button id="check">Vérifier</button>
-    <button id="refresh" class="ghost" title="Re-scraper sans cache">↻</button>
-  </div>
+  <form class="controls" id="form">
+    <label class="sr-only" for="url">Link to preview</label>
+    <input id="url" type="text" inputmode="url" autocomplete="url" spellcheck="false"
+           placeholder="https://example.com/article" autofocus>
+    <button type="submit" class="btn primary">Check</button>
+    <button type="button" class="btn icon" id="refresh" aria-label="Re-check without cache"
+            title="Re-check without cache">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+        <path d="M21 3v6h-6"/>
+      </svg>
+    </button>
+  </form>
 
-  <div id="status" class="status"></div>
-  <div id="card" class="stage"></div>
+  <section class="stage" id="stage" aria-live="polite" aria-label="Embed preview"></section>
 
   <details id="dbg" hidden>
-    <summary>Données brutes</summary>
+    <summary>Raw metadata</summary>
     <pre id="raw"></pre>
   </details>
+</main>
 
 <script>
-  // En local ('') le backend est server.js. Sur GitHub Pages, mets l'URL de ton Worker Cloudflare.
+  // Locally ('') the backend is server.js. On GitHub Pages, this points at the Cloudflare Worker.
   const API_BASE = location.hostname.endsWith('github.io')
     ? 'https://discord-embed-viewer.discord-embed-viewer.workers.dev'
     : '';
@@ -103,29 +215,76 @@
   const img = (u) => API_BASE + '/api/image?url=' + encodeURIComponent(u);
   const truncate = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
-  function setStatus(msg, err) {
-    const s = $('status');
-    s.textContent = msg;
-    s.className = 'status' + (err ? ' err' : '');
+  // Images chargées en direct (aucune requête Worker) ; le proxy ne sert qu'en secours,
+  // une seule fois, pour les images qui bloquent le hotlink.
+  const imgEl = (u, cls = '') => {
+    const d = safeUrl(u);
+    if (!d) return '';
+    return `<img${cls ? ` class="${cls}"` : ''} src="${esc(d)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="imgFail(this,'${img(d)}')">`;
+  };
+  window.imgFail = (el, proxy) => {
+    if (!el.dataset.fb) { el.dataset.fb = '1'; el.src = proxy; return; }
+    const box = el.closest('.ethumb');
+    (box || el).remove();
+  };
+
+  const stage = $('stage');
+  const dbg = $('dbg');
+  const raw = $('raw');
+
+  const PLAY_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+
+  const EMPTY_HTML = `
+    <div class="empty">
+      <p class="state-title">Your embed preview will appear here</p>
+      <p class="state-sub">Paste any link above, or try one of these:</p>
+      <div class="examples">
+        <button type="button" class="chip" data-url="https://github.com">github.com</button>
+        <button type="button" class="chip" data-url="https://www.youtube.com/watch?v=dQw4w9WgXcQ">youtube.com</button>
+        <button type="button" class="chip" data-url="https://en.wikipedia.org/wiki/Discord">wikipedia.org</button>
+      </div>
+    </div>`;
+
+  const SKELETON_HTML = `
+    <div class="skeleton" aria-hidden="true">
+      <div class="sk sk-line" style="width: 40%"></div>
+      <div class="sk sk-line" style="width: 92%"></div>
+      <div class="sk sk-line" style="width: 74%"></div>
+      <div class="sk sk-img"></div>
+    </div>`;
+
+  function showEmpty() { stage.innerHTML = EMPTY_HTML; dbg.hidden = true; }
+
+  function showLoading() {
+    stage.setAttribute('aria-busy', 'true');
+    stage.innerHTML = SKELETON_HTML;
+  }
+
+  function showError(msg) {
+    stage.removeAttribute('aria-busy');
+    stage.innerHTML = `<div class="error" role="alert">
+        <p class="state-title">Couldn't preview that link</p>
+        <p class="state-sub">${esc(msg)}</p>
+      </div>`;
+    dbg.hidden = true;
   }
 
   async function run(bust) {
-    const raw = $('url').value.trim();
-    if (!raw) return setStatus('Colle un lien.', true);
-    const url = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
-    setStatus('Chargement…');
-    $('card').innerHTML = '';
-    $('dbg').hidden = true;
+    const val = $('url').value.trim();
+    if (!val) { $('url').focus(); return; }
+    const url = /^https?:\/\//i.test(val) ? val : 'https://' + val;
+
+    showLoading();
     try {
       const res = await fetch(`${API_BASE}/api/embed?url=${encodeURIComponent(url)}${bust ? '&t=' + Date.now() : ''}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || ('Erreur ' + res.status));
+      if (!res.ok) throw new Error(data.error || ('Request failed with status ' + res.status));
+      stage.removeAttribute('aria-busy');
       render(data);
-      setStatus('');
-      $('raw').textContent = JSON.stringify(data, null, 2);
-      $('dbg').hidden = false;
+      raw.textContent = JSON.stringify(data, null, 2);
+      dbg.hidden = false;
     } catch (e) {
-      setStatus('Erreur : ' + e.message, true);
+      showError(e.message || String(e));
     }
   }
 
@@ -138,8 +297,7 @@
     if (d.siteName) parts.push(`<div class="provider">${esc(d.siteName)}</div>`);
 
     if (d.author && d.author.name) {
-      const ic = d.author.icon && safeUrl(d.author.icon)
-        ? `<img src="${img(d.author.icon)}" alt="" onerror="this.remove()">` : '';
+      const ic = imgEl(d.author.icon);
       const nm = d.author.url && safeUrl(d.author.url)
         ? `<a href="${safeUrl(d.author.url)}" target="_blank" rel="noopener">${esc(d.author.name)}</a>`
         : esc(d.author.name);
@@ -151,37 +309,42 @@
     }
     if (d.description) parts.push(`<div class="edesc">${esc(truncate(d.description, 1000))}</div>`);
 
-    const thumb = d.thumbnail && safeUrl(d.thumbnail.url)
-      ? `<div class="ethumb"><img src="${img(d.thumbnail.url)}" alt="" onerror="this.parentElement.remove()"></div>`
-      : '';
+    const thumbImg = imgEl(d.thumbnail?.url);
+    const thumb = thumbImg ? `<div class="ethumb">${thumbImg}</div>` : '';
 
     let media = '';
     const hasVideo = d.video && safeUrl(d.video.url);
-    if (d.image && safeUrl(d.image.url)) {
-      const inner = `<img src="${img(d.image.url)}" alt="" onerror="this.parentElement.remove()">`;
+    const inner = imgEl(d.image?.url);
+    if (inner) {
       media = hasVideo
-        ? `<a class="eimage" href="${safeUrl(d.url)}" target="_blank" rel="noopener">${inner}<span class="play">▶</span></a>`
+        ? `<a class="eimage" href="${safeUrl(d.url)}" target="_blank" rel="noopener">${inner}<span class="play">${PLAY_ICON}</span></a>`
         : `<div class="eimage">${inner}</div>`;
     } else if (hasVideo) {
-      media = `<a class="evideo" href="${safeUrl(d.url)}" target="_blank" rel="noopener">▶ Voir la vidéo</a>`;
+      media = `<a class="evideo" href="${safeUrl(d.url)}" target="_blank" rel="noopener">${PLAY_ICON} Watch video</a>`;
     }
 
+    const favicon = imgEl(d.favicon);
     const footer = d.siteName
-      ? `<div class="efooter">${d.favicon && safeUrl(d.favicon) ? `<img src="${img(d.favicon)}" alt="" onerror="this.remove()">` : ''}${esc(d.siteName)}</div>`
+      ? `<div class="efooter">${favicon}${esc(d.siteName)}</div>`
       : '';
 
     const warn = d.status >= 400
-      ? `<div class="warn">La page a répondu ${d.status} — embed potentiellement incomplet.</div>` : '';
+      ? `<div class="warn">The page responded ${d.status} — the embed may be incomplete.</div>` : '';
 
-    $('card').innerHTML = `<div class="embed" style="border-left-color:${accent}">
+    stage.innerHTML = `<div class="embed" style="border-left-color:${accent}">
         ${thumb}<div class="ebody">${parts.join('')}</div>
         ${media}${footer}
       </div>${warn}`;
   }
 
-  $('check').onclick = () => run(false);
-  $('refresh').onclick = () => run(true);
-  $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(false); });
+  $('form').addEventListener('submit', (e) => { e.preventDefault(); run(false); });
+  $('refresh').addEventListener('click', () => run(true));
+  stage.addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-url]');
+    if (chip) { $('url').value = chip.dataset.url; run(false); }
+  });
+
+  showEmpty();
 </script>
 </body>
 </html>

@@ -38,6 +38,33 @@ export function assertSafeUrl(raw) {
   return u;
 }
 
+// Lit seulement les premiers `cap` octets puis coupe le flux : on ne télécharge jamais
+// une page de plusieurs Mo alors que les <meta> tiennent dans le <head>. (CPU + bande passante.)
+async function readCapped(res, cap) {
+  if (!res.body?.getReader) return (await res.text()).slice(0, cap);
+  const reader = res.body.getReader();
+  const chunks = [];
+  let size = 0;
+  try {
+    while (size < cap) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = value.length > cap - size ? value.subarray(0, cap - size) : value;
+      chunks.push(chunk);
+      size += chunk.length;
+    }
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+  const buf = new Uint8Array(size);
+  let off = 0;
+  for (const c of chunks) {
+    buf.set(c, off);
+    off += c.length;
+  }
+  return new TextDecoder('utf-8').decode(buf);
+}
+
 async function fetchText(rawUrl, accept = DEFAULT_ACCEPT) {
   const u = assertSafeUrl(rawUrl);
   const ctl = new AbortController();
@@ -48,7 +75,7 @@ async function fetchText(rawUrl, accept = DEFAULT_ACCEPT) {
       signal: ctl.signal,
       headers: { 'user-agent': BOT_UA, accept, 'accept-language': 'fr-FR,fr;q=0.9,en;q=0.8' },
     });
-    const text = (await res.text()).slice(0, MAX_BYTES);
+    const text = await readCapped(res, MAX_BYTES);
     return {
       ok: res.ok,
       status: res.status,
